@@ -173,8 +173,8 @@ _entity_collision_pt_chk = (list) ->
 
 	return false
 
-entity_collision_up = (e) ->
-	if e.fvec.y >= 0 then return false
+entity_collision_up = (e, count_fvec) ->
+	if count_fvec and e.fvec.y >= 0 then return false
 
 	list = {
 		vec(e.pos.x , e.pos.y - 1),
@@ -186,8 +186,8 @@ entity_collision_up = (e) ->
 			
 	return false
 
-entity_collision_down = (e) ->
-	if e.fvec.y <= 0 then return false
+entity_collision_down = (e, count_fvec) ->
+	if count_fvec and e.fvec.y <= 0 then return false
 
 	list = {
 		vec(e.pos.x , e.pos.y + e.sz.y),
@@ -199,8 +199,8 @@ entity_collision_down = (e) ->
 
 	return false
 
-entity_collision_left = (e) ->
-	if e.fvec.x >= 0 then return false
+entity_collision_left = (e, count_fvec) ->
+	if count_fvec and e.fvec.x >= 0 then return false
 
 	list = {
 		vec(e.pos.x - 1, e.pos.y),
@@ -212,8 +212,8 @@ entity_collision_left = (e) ->
 
 	return false
 
-entity_collision_right = (e) ->
-	if e.fvec.x <= 0 then return false
+entity_collision_right = (e, count_fvec) ->
+	if count_fvec and e.fvec.x <= 0 then return false
 
 	list = {
 		vec(e.pos.x + e.sz.x, e.pos.y),
@@ -228,11 +228,11 @@ entity_collision_right = (e) ->
 entity_gravity = (e, gravity_add, jump, jump_gravity) ->
 	e.gravity += gravity_add
 
-	if entity_collision_down(e) then
+	if entity_collision_down(e, true) then
 		e.gravity = 0
 		if jump then e.gravity = jump_gravity
 
-	if entity_collision_up(e) then
+	if entity_collision_up(e, true) then
 		e.gravity = 0
 
 -- player
@@ -261,12 +261,56 @@ player_update = (e) ->
 player_chkremove = (i, e) ->
 	if e.hp == 0 then table.remove(list_entity, i)
 
+_PLAYER_SPR = {
+	run: {
+		257,
+		259,
+		263,
+		261,
+	},
+	idle: {
+		256,
+		288,
+	},
+	air: {
+		257,
+	},
+}
+
+_player_looking_right = false
+_t_player_stop_move = 0
+
 player_draw = (e) ->
 	draw_pos = vecsub(e.pos, vecfloor(cam.pos))
-	spr(256, draw_pos.x, draw_pos.y, 0, 1, 0, 0, 1, 2)
+
+	if btn(2) then _player_looking_right = false
+	if btn(3) then _player_looking_right = true
+
+	if not entity_collision_down(e, false) then
+		if not _player_looking_right then
+			spr(_PLAYER_SPR.air[1], draw_pos.x-5, draw_pos.y, 0, 1, 0, 0, 2, 2)
+		else
+			spr(_PLAYER_SPR.air[1], draw_pos.x-5, draw_pos.y, 0, 1, 1, 0, 2, 2)
+		return
+
+	if btn(2) then
+		spr(_PLAYER_SPR.run[(t//6)%4+1], draw_pos.x-5, draw_pos.y, 0, 1, 0, 0, 2, 2)
+		_t_player_stop_move = t
+		return
+
+	if btn(3) then
+		spr(_PLAYER_SPR.run[(t//6)%4+1], draw_pos.x-5, draw_pos.y, 0, 1, 1, 0, 2, 2)
+		_t_player_stop_move = t
+		return
+
+	if not _player_looking_right then
+		spr(_PLAYER_SPR.idle[(t-_t_player_stop_move)//40%2 + 1], draw_pos.x, draw_pos.y, 0, 1, 0, 0, 1, 2)
+		return
+	
+	spr(_PLAYER_SPR.idle[(t-_t_player_stop_move)//40%2 + 1], draw_pos.x, draw_pos.y, 0, 1, 1, 0, 1, 2)
 
 export BOOT = ->
-	player = entity_create(vec(50, 50), vec(8, 12))
+	player = entity_create(vec(50, 50), vec(8, 16))
 	player.draw = player_draw
 	player.update = player_update
 	player.chkremove = player_chkremove
@@ -287,12 +331,31 @@ export TIC = ->
 	t += 1
 
 -- <TILES>
+-- 000:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 -- 001:eeeeeeeee000000ee000000ee000000ee000000ee000000ee000000eeeeeeeee
 -- </TILES>
 
 -- <SPRITES>
--- 000:5555555550000005500000055000000550000005500000055000000550000005
--- 016:5000000550000005500000055555555500000000000000000000000000000000
+-- 000:00bbbb000bbbbbb00b2bbbb00b222bb00b2222b00bd22db000811f0008f11ff0
+-- 001:000000bb00000bbb00000b2b00000b2200000b2200000bd200000081000008f1
+-- 002:bb000000bbb00000bbb000002bb0000022b000002db000001f0000001ff00000
+-- 003:00000000000000bb00000bbb00000b2b00000b2200000b2200000bd200000081
+-- 004:00000000bb000000bbb00000bbb000002bb0000022b000002db000001f000000
+-- 005:000000bb00000bbb00000b2b00000b2200000b2200000bd200000081000008f1
+-- 006:bb000000bbb00000bbb000002bb0000022b000002db000001f0000001ff00000
+-- 007:00000000000000bb00000bbb00000b2b00000b2200000b2200000bd200000081
+-- 008:00000000bb000000bbb00000bbb000002bb0000022b000002db000001f000000
+-- 016:08f11ff008f11ff08ff88fff8ff88fff8ff88fff08f88ff00020020000800800
+-- 017:00008ff10008fff1008ffff8000ffff800000ff800000ff80000002000000080
+-- 018:1fff00001ffff0008fffff008ff8f0008ff000008ff000000200000008000000
+-- 019:000008f100008ff10008fff1008ffff8000ffff800000ff80000000200000008
+-- 020:1ff000001fff00001ffff0008fffff008ff8f0008ff000002000000008000000
+-- 021:00008ff10008fff1008ffff8000ffff800000ff800000ff80000020000000800
+-- 022:1fff00001ffff0008fffff008ff8f0008ff000008ff000000020000000800000
+-- 023:000008f100008ff10008fff1008ffff8000ffff800000ff80000002000000080
+-- 024:1ff000001fff00001ffff0008fffff008ff8f0008ff000000200000008000000
+-- 032:0000000000bbbb000bbbbbb00b2bbbb00b222bb00b2222b00bd22db000811f00
+-- 048:08f11ff008f11ff008f11ff08ff88fff8ff88fff08f88ff00020020000800800
 -- </SPRITES>
 
 -- <MAP>
@@ -321,6 +384,6 @@ export TIC = ->
 -- </TRACKS>
 
 -- <PALETTE>
--- 000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f494b0c2566c86333c57
+-- 000:1a1c2cedededfffbedf3dea4f5c16da7f07038b764ad8a53262c3fffea66d98effdefbfffffff694b0c2566c86333c57
 -- </PALETTE>
 
