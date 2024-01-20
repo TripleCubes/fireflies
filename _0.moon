@@ -60,8 +60,17 @@ vecdiv = (vec, n) ->
 		y: vec.y / n,
 	}
 
+vecfloor = (vec) ->
+	return {
+		x: math.floor(vec.x),
+		y: math.floor(vec.y),
+	}
+
 veclength = (vec) ->
 	return math.sqrt(vec.x*vec.x + vec.y*vec.y)
+
+vecdist = (vec1, vec2) ->
+	return veclength(vecsub(vec1, vec2))
 
 vecnormalized = (vec) ->
 	return vecdiv(vec, veclength(vec))
@@ -243,14 +252,18 @@ player_update = (e) ->
 
 	entity_move(e)
 	
-	cam.pos = vecsub(e.pos, vecdiv(WINDOW_WH, 2))
-	cam.pos = vecadd(cam.pos, vecdiv(e.sz, 2))
+	cam_follow_pos = vecsub(e.pos, vecdiv(WINDOW_WH, 2))
+	cam_follow_pos = vecadd(cam_follow_pos, vecdiv(e.sz, 2))
+	cam_follow_spd = vecdist(cam.pos, cam_follow_pos) * 0.1
+	cam_follow_dir = vecnormalized(vecsub(cam_follow_pos, cam.pos))
+	cam.pos = vecadd(cam.pos, vecmul(cam_follow_dir, cam_follow_spd))
 
 player_chkremove = (i, e) ->
 	if e.hp == 0 then table.remove(list_entity, i)
 
 player_draw = (e) ->
-	spr(256, WINDOW_W/2 - e.sz.x/2, WINDOW_H/2 - e.sz.y/2, 0, 1, 0, 0, 1, 2)
+	draw_pos = vecsub(e.pos, vecfloor(cam.pos))
+	spr(256, draw_pos.x, draw_pos.y, 0, 1, 0, 0, 1, 2)
 
 export BOOT = ->
 	player = entity_create(vec(50, 50), vec(8, 12))
@@ -264,8 +277,8 @@ export BOOT = ->
 export TIC = ->
 	cls(0)
 
-	map(cam.pos.x//8-1, cam.pos.y//8-1, 32, 19, 8 - cam.pos.x%8 - 16, 8 - cam.pos.y%8 - 16)
-	print(cam.pos.x)
+	cam_pos = vecfloor(cam.pos)
+	map(cam_pos.x//8-1, cam_pos.y//8-1, 32, 19, 8 - cam_pos.x%8 - 16, 8 - cam_pos.y%8 - 16)
 
 	entity_list_update()
 	entity_list_chkremove()
