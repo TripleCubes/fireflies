@@ -17,11 +17,15 @@ KNIFE_COOLDOWN = 0.1
 
 t = 0
 list_entity = {}
+
+player = {}
+
 cam = {
 	pos: { x: 0, y: 0 },
 }
 
 time_stopped = false
+n_vbank = 0
 
 -- vec
 vec = (x, y) ->
@@ -95,6 +99,12 @@ rectcollide = (pos1, sz1, pos2, sz2) ->
 	if pos1.y >= pos2.y + sz2.y then return false
 	return true
 
+-- utils
+find_in_list = (list, val) ->
+	for i, val_comp in ipairs(list)
+		if val_comp == val then return i
+	return -1
+
 -- map
 map_solid = (pos) ->
 	return mget(pos.x // 8, pos.y // 8) != 0
@@ -134,6 +144,7 @@ entity_create = (pos, sz) ->
 		jump_gravity: 0,
 		collision_weight: 999999,
 		collision_type: COLLISION_COLLISION,
+		ignore_collision: {},
 	}
 
 entity_physic_point_list = (pos, e) ->
@@ -158,6 +169,7 @@ entity_movex = (e) ->
 	if mx == 0 then return
 		
 	newpos = vec(e.pos.x + mx, e.pos.y)
+	
 	list_physic_point = entity_physic_point_list(newpos, e)
 
 	for i, physic_point in ipairs(list_physic_point)
@@ -168,6 +180,7 @@ entity_movex = (e) ->
 
 	for i, e_comp in ipairs(list_entity)
 		if e_comp == e then continue
+		if find_in_list(e.ignore_collision, e_comp) != -1 then continue
 		if e_comp.collision_type == COLLISION_NONE then continue
 		if e_comp.collision_type == COLLISION_ONLY_DOWN then continue
 		if rectcollide(newpos, e.sz, e_comp.pos, e_comp.sz) then
@@ -182,6 +195,7 @@ entity_movey = (e) ->
 	if my == 0 then return
 			
 	newpos = vec(e.pos.x, e.pos.y + my)
+	
 	list_physic_point = entity_physic_point_list(newpos, e)
 
 	for i, physic_point in ipairs(list_physic_point)
@@ -192,6 +206,7 @@ entity_movey = (e) ->
 
 	for i, e_comp in ipairs(list_entity)
 		if e_comp == e then continue
+		if find_in_list(e.ignore_collision, e_comp) != -1 then continue
 		if e_comp.collision_type == COLLISION_NONE then continue
 		if e_comp.collision_type == COLLISION_ONLY_DOWN and my < 0 then continue
 		if rectcollide(newpos, e.sz, e_comp.pos, e_comp.sz) then
@@ -330,6 +345,7 @@ player_update = (e) ->
 	
 	if btnp(6) then
 		time_stopped = not time_stopped
+		if time_stopped then n_vbank = 1 else n_vbank = 0
 
 player_chkremove = (i, e) ->
 	if e.hp == 0 then table.remove(list_entity, i)
@@ -424,6 +440,7 @@ knife_create = (pos, right_dir) ->
 	knife.draw = knife_draw
 
 	knife.collision_type = COLLISION_ONLY_DOWN
+	knife.ignore_collision = { player }
 
 	return knife
 
@@ -433,6 +450,7 @@ export BOOT = ->
 
 export TIC = ->
 	cls(0)
+	vbank(n_vbank)
 
 	cam_pos = vecfloor(cam.pos)
 	map(cam_pos.x//8-1, cam_pos.y//8-1, 32, 19, 8 - cam_pos.x%8 - 16, 8 - cam_pos.y%8 - 16)
