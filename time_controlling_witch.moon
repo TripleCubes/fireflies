@@ -6,9 +6,59 @@
 -- version: 0.1
 -- script:  moon
 
--- These functions are at top because forward declare doesnt work for some reason
-t = 0
+local vecnew
+local veccopy
+local tweenvec_create
+local tweenvec_list_add
 
+WINDOW_W = 240
+WINDOW_H = 136
+WINDOW_WH = { x: 240, y: 136 }
+
+NORMAL_GRAVITY_ADD = 0.15
+NORMAL_JUMP_GRAVITY = -2.2
+
+KNIFE_COOLDOWN = 0.1
+
+LIST_ROOM = {}
+
+list_entity = {}
+list_tween_vec = {}
+player = {}
+time_stopped = false
+n_vbank = 0
+prev_room = {}
+t = 0
+cam = {}
+
+boot = ->
+	LIST_ROOM = {
+		{
+			pos: vecnew(0, 0),
+			sz: vecnew(30, 17),
+			restart: vecnew(5, 15),
+		},
+		{
+			pos: vecnew(30, 0),
+			sz: vecnew(30, 17),
+		},
+		{
+			pos: vecnew(60, 0),
+			sz: vecnew(60, 17),
+		},
+		{
+			pos: vecnew(120, 0),
+			sz: vecnew(30, 17),
+		},
+	}
+
+	cam = {
+		pos: tweenvec_create(vecnew(0, 0))
+	}
+	tweenvec_list_add(cam.pos)
+
+
+-- vec
 vecnew = (x, y) ->
 	return {
 		x: x,
@@ -21,75 +71,6 @@ veccopy = (vec) ->
 		y: vec.y,
 	}
 
-tweenvec_create = (pos) ->
-	return {
-		prev_pos: veccopy(pos),
-		pos: veccopy(pos),
-		dest: veccopy(pos),
-		tween_time: 0.7,
-		t_start_tween: 0,
-		sine: true,
-		tween: (self, dest) ->
-			self.prev_pos = veccopy(self.pos)
-			self.dest = veccopy(dest)
-			self.t_start_tween = t
-		set_pos: (self, pos) ->
-			self.prev_pos = veccopy(pos)
-			self.dest = veccopy(pos)
-			self.pos = veccopy(pos)
-			self.t_start_tween = t - self.tween_time*60
-		tweening: (self) ->
-			return t <= self.t_start_tween + self.tween_time*60
-	}
-
-list_tween_vec = {}
-tweenvec_list_add = (tweenvec) ->
-	table.insert(list_tween_vec, tweenvec)
-
-
-WINDOW_W = 240
-WINDOW_H = 136
-WINDOW_WH = vecnew(240, 136)
-
-NORMAL_GRAVITY_ADD = 0.15
-NORMAL_JUMP_GRAVITY = -2.2
-
-KNIFE_COOLDOWN = 0.1
-
-LIST_ROOM = {
-	{
-		pos: vecnew(0, 0),
-		sz: vecnew(30, 17),
-		restart: vecnew(5, 15),
-	},
-	{
-		pos: vecnew(30, 0),
-		sz: vecnew(30, 17),
-	},
-	{
-		pos: vecnew(60, 0),
-		sz: vecnew(60, 17),
-	},
-	{
-		pos: vecnew(120, 0),
-		sz: vecnew(30, 17),
-	},
-}
-
-list_entity = {}
-player = {}
-time_stopped = false
-n_vbank = 0
-prev_room = {}
-
-
-cam = {
-	pos: tweenvec_create(vecnew(0, 0))
-}
-tweenvec_list_add(cam.pos)
-
-
--- vec
 vecequals = (vec1, vec2) ->
 	return vec1.x == vec2.x and vec1.y == vec2.y
 
@@ -199,6 +180,30 @@ find_in_list = (list, val) ->
 	return -1
 
 -- tween
+tweenvec_create = (pos) ->
+	return {
+		prev_pos: veccopy(pos),
+		pos: veccopy(pos),
+		dest: veccopy(pos),
+		tween_time: 0.7,
+		t_start_tween: 0,
+		sine: true,
+		tween: (self, dest) ->
+			self.prev_pos = veccopy(self.pos)
+			self.dest = veccopy(dest)
+			self.t_start_tween = t
+		set_pos: (self, pos) ->
+			self.prev_pos = veccopy(pos)
+			self.dest = veccopy(pos)
+			self.pos = veccopy(pos)
+			self.t_start_tween = t - self.tween_time*60
+		tweening: (self) ->
+			return t <= self.t_start_tween + self.tween_time*60
+	}
+
+tweenvec_list_add = (tweenvec) ->
+	table.insert(list_tween_vec, tweenvec)
+
 tweenvec_list_update = () ->
 	for i, tweenvec in ipairs(list_tween_vec)
 		t_percent = (t - tweenvec.t_start_tween) / (tweenvec.tween_time * 60)
@@ -661,6 +666,7 @@ explode = (pos) ->
 		entity_list_add(explode_particle_create(pos, fvec, 40, 5, 11))
 
 export BOOT = ->
+	boot()
 	player = player_create(vecnew(50, 50))
 	entity_list_add(player)
 
