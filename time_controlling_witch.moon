@@ -60,6 +60,7 @@ LIST_ROOM = {
 	{
 		pos: vecnew(0, 0),
 		sz: vecnew(30, 17),
+		restart: vecnew(5, 15),
 	},
 	{
 		pos: vecnew(30, 0),
@@ -79,6 +80,7 @@ list_entity = {}
 player = {}
 time_stopped = false
 n_vbank = 0
+prev_room = {}
 
 
 cam = {
@@ -147,12 +149,30 @@ vecshrink = (vec, n) ->
 	if length < 0.1 then return vecnew(0, 0)
 	return vecmul(vecnormalized(vec), length - n)
 
+vecrot = (vec, rad) ->
+	newx = 0
+	newy = 0
+	newx = vec.x * math.cos(rad) - vec.y * math.sin(rad)
+	newy = vec.x * math.sin(rad) + vec.y * math.cos(rad)
+	return vecnew(newx, newy)
+
 -- math
 floor = (n, f) ->
 	return (n // f) * f
 
 sqr = (n) ->
 	return n*n
+
+rndf = (a, b) ->
+	return math.random() * (b - a) + a
+
+rndi = (a, b) ->
+	return math.random(a, b)
+
+sign = (n) ->
+	if n == 0 then return 0
+	if n < 0 then return -1
+	return 1
 
 rectcollide = (pos1, sz1, pos2, sz2) ->
 	if pos1.x + sz1.x <= pos2.x then return false
@@ -196,11 +216,51 @@ map_solid = (pos) ->
 	return mget(pos.x // 8, pos.y // 8) != 0
 
 -- room
+local explode
+local restart_room_create
+local entity_create
+local entity_list_add
+
 get_room = (pos) ->
 	map_pos = vecdivdiv(pos, 8)
 	for i, room in ipairs(LIST_ROOM)
 		if is_in_rect(map_pos, room.pos, room.sz) then return room
 	return -1
+
+restart_room = ->
+	entity_list_add(restart_room_create())
+	player.visible = true
+	player.pos = vecadd(vecmul(prev_room.restart, 8), vecnew(0, -16))
+
+room_update = ->
+	room = get_room(vecadd(player.pos, vecnew(4, 12)))
+	if room != -1 then
+		prev_room = room
+		return
+
+	if room == -1 and player.visible then 
+		player.visible = false
+		explode(vecadd(player.pos, vecnew(4, 8)))
+		restart_room()
+	
+-- restart_room = ->
+restart_room_draw = (e) ->
+	t_diff = t - e.t_creation
+	rect(0, WINDOW_H - t_diff * 6, WINDOW_W, WINDOW_H + 100, 0)
+
+restart_room_chkremove = (i, e) ->
+	t_diff = t - e.t_creation
+	if WINDOW_H - t_diff * 2 < -(WINDOW_H + 100) then
+		table.remove(list_entity, i)
+	
+restart_room_create = ->
+	rr = entity_create(vecnew(0, 0), vecnew(0, 0))
+	rr.t_creation = t
+
+	rr.draw = restart_room_draw
+	rr.chkremove = restart_room_chkremove
+	
+	return rr
 
 -- camera
 get_draw_pos = (pos) ->
@@ -438,6 +498,8 @@ _player_looking_right = false
 _knife_cooldown = 0
 
 player_update = (e) ->
+	if not player.visible then return
+
 	e.fvec.x = 0
 	if btn(2) then e.fvec.x = -1
 	if btn(3) then e.fvec.x = 1
@@ -460,9 +522,6 @@ player_update = (e) ->
 		time_stopped = not time_stopped
 		if time_stopped then n_vbank = 1 else n_vbank = 0
 
-player_chkremove = (i, e) ->
-	if e.hp == 0 then table.remove(list_entity, i)
-
 _PLAYER_SPR = {
 	run: {
 		257,
@@ -482,6 +541,8 @@ _PLAYER_SPR = {
 _t_player_stop_move = 0
 
 player_draw = (e) ->
+	if not player.visible then return
+		
 	draw_pos = get_draw_pos(e.pos)
 
 	if btn(2) then _player_looking_right = false
@@ -517,10 +578,10 @@ player_create = (pos) ->
 	player.gravity_add = NORMAL_GRAVITY_ADD
 	player.jump_gravity = NORMAL_JUMP_GRAVITY
 
+	player.visible = true
 
 	player.draw = player_draw
 	player.update = player_update
-	player.chkremove = player_chkremove
 
 	return player
 
@@ -557,6 +618,48 @@ knife_create = (pos, right_dir) ->
 
 	return knife
 
+-- explode
+explode_particle_update = (par) ->
+	par.pos = vecadd(par.pos, par.fvec)
+
+explode_particle_chkremove = (i, par) ->
+	dist = vecdist(par.pos, par.origin)
+	if dist > par.max_dist + par.line_dist then table.remove(list_entity, i)
+
+explode_particle_draw = (par) ->
+	p1 = veccopy(par.pos)
+	dist = vecdist(p1, par.origin)
+
+	dir = vecnormalized(par.fvec)
+	p0 = veccopy(par.origin)
+	if dist > par.line_dist then p0 = vecsub(p1, vecmul(dir, par.line_dist))
+
+	if dist > par.max_dist then p1 = vecadd(par.origin, vecmul(dir, par.max_dist))
+	
+	drawp0 = get_draw_pos(p0)
+	drawp1 = get_draw_pos(p1)
+	line(drawp0.x, drawp0.y, drawp1.x, drawp1.y, par.color)
+
+explode_particle_create = (pos, fvec, max_dist, line_dist, color) ->
+	par = entity_create(pos, vecnew(0, 0))
+	par.collision_type = COLLISION_NONE
+	par.fvec = veccopy(fvec)
+	par.max_dist = max_dist
+	par.color = color
+	par.origin = veccopy(pos)
+	par.line_dist = line_dist
+	
+	par.update = explode_particle_update
+	par.chkremove = explode_particle_chkremove
+	par.draw = explode_particle_draw
+	return par
+
+explode = (pos) ->
+	step = math.pi/2/3
+	for i = 0, (math.pi*2) // step
+		fvec = vecrot(vecnew(0, 1.7), i*step)
+		entity_list_add(explode_particle_create(pos, fvec, 40, 5, 11))
+
 export BOOT = ->
 	player = player_create(vecnew(50, 50))
 	entity_list_add(player)
@@ -572,6 +675,8 @@ export TIC = ->
 	tweenvec_list_update()
 	entity_list_update()
 	entity_list_chkremove()
+	room_update()
+
 	entity_list_draw()
 
 	t += 1
@@ -629,7 +734,7 @@ export TIC = ->
 -- 013:200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 -- 014:200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 -- 015:200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
--- 016:202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+-- 016:202020202020202020202020000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 -- </MAP>
 
 -- <WAVES>
