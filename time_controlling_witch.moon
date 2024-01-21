@@ -24,6 +24,8 @@ LIST_ROOM = {}
 
 list_entity = {}
 list_tween_vec = {}
+list_interval = {}
+latest_interval_id = 1
 player = {}
 time_stopped = false
 n_vbank = 0
@@ -137,6 +139,51 @@ vecrot = (vec, rad) ->
 	newy = vec.x * math.sin(rad) + vec.y * math.cos(rad)
 	return vecnew(newx, newy)
 
+-- intervals
+interval_list_update = ->
+	for i, interval in ipairs(list_interval)
+		if not interval.finished and t - interval.t_creation > (interval.looped + 1) * interval.delay*60 then
+			interval.looped += 1
+			interval.func()
+			if interval.looped >= interval.number_of_loop then
+				interval.finished = true
+
+set_interval = (delay, number_of_loop, func) ->
+	index = -1
+	for i, interval in ipairs(list_interval)
+		if interval.finished then
+			index = i
+			break
+
+	interval = {
+		t_creation: t,
+		delay: delay,
+		func: func,
+		id: latest_interval_id,
+		number_of_loop: number_of_loop,
+		looped: 0,
+		finished: false,
+	}
+	latest_interval_id += 1
+	if latest_interval_id > 1000000 then
+		trace("interval id pass 1000000")
+
+	if index != -1 then list_interval[index] = interval
+	else table.insert(list_interval, interval)
+
+	return interval.id
+
+stop_interval = (id) ->
+    for i, interval in ipairs(list_interval)
+        if interval.id == id
+            interval.finished = true
+
+wait = (delay, func) ->
+	return set_interval(delay, 1, func)
+
+stop_wait = (id) ->
+	stop_interval(id)
+
 -- math
 floor = (n, f) ->
 	return (n // f) * f
@@ -233,10 +280,12 @@ get_room = (pos) ->
 	return -1
 
 restart_room = ->
-	entity_list_add(restart_room_create())
-	player.visible = true
-	player.pos = vecadd(vecmul(prev_room.restart, 8), vecnew(0, -16))
-
+	wait(0.5, () -> entity_list_add(restart_room_create()))
+	wait(0.8, () -> 
+		player.visible = true
+		player.pos = vecadd(vecmul(prev_room.restart, 8), vecnew(0, -16))
+	)
+	
 room_update = ->
 	room = get_room(vecadd(player.pos, vecnew(4, 12)))
 	if room != -1 then
@@ -248,7 +297,7 @@ room_update = ->
 		explode(vecadd(player.pos, vecnew(4, 8)))
 		restart_room()
 	
--- restart_room = ->
+-- restart room = ->
 restart_room_draw = (e) ->
 	t_diff = t - e.t_creation
 	rect(0, WINDOW_H - t_diff * 6, WINDOW_W, WINDOW_H + 100, 0)
@@ -679,9 +728,10 @@ export TIC = ->
 	map(cam_pos.x//8-1, cam_pos.y//8-1, 32, 19, 8 - cam_pos.x%8 - 16, 8 - cam_pos.y%8 - 16)
 
 	tweenvec_list_update()
+	interval_list_update()
+	room_update()
 	entity_list_update()
 	entity_list_chkremove()
-	room_update()
 
 	entity_list_draw()
 
