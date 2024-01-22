@@ -8,6 +8,7 @@
 
 local vecnew
 local veccopy
+local vecadd
 local player_create
 local spring_create
 local lamp_create
@@ -15,6 +16,8 @@ local lamp_door_create
 local entity_list_add
 local tweenvec_create
 local tweenvec_list_add
+local get_draw_pos
+local fireflies
 
 WINDOW_W = 240
 WINDOW_H = 136
@@ -152,6 +155,9 @@ boot = ->
 	spring(113, 14)
 	spring(114, 14)
 
+	-- 10
+	fireflies(false, vecadd(vecnew(138 * 8, 27 * 8), vecnew(3, -10)), 100, 30, 11)
+
 	-- 11
 	lamp(vecnew(141, 9), vecnew(148*8 + 5, 10*8), vecnew(3, 3*8), vecnew(148*8 + 5, 10*8 - 3*8))
 
@@ -163,6 +169,10 @@ boot = ->
 	player = player_create(vecnew(123 * 8, 9 * 8))
 	-- player = player_create(vecnew(6 * 8, 99 * 8))
 	entity_list_add(player)
+
+bkg = ->
+	lamp_draw_pos = get_draw_pos(vecnew(138 * 8, 27 * 8)) 
+	spr(448, lamp_draw_pos.x, lamp_draw_pos.y, 0, 1, 0, 0, 4, 4)
 
 
 -- vec
@@ -411,6 +421,8 @@ restart_room = ->
 				list_entity[i].broken = false
 			if list_entity[i].type == "lamp_door" then
 				list_entity[i].close(list_entity[i])
+			if list_entity[i].type == "firefly_reset" then
+				table.remove(list_entity, i)
 
 		set_time_stop(false)
 	)
@@ -914,8 +926,6 @@ spring_create = (map_pos) ->
 	return spring
 
 -- lamp
-local fireflies
-
 lamp_update = (e) ->
 	if e.broken then return
 
@@ -925,7 +935,7 @@ lamp_update = (e) ->
 			e.broken = true
 
 			explode(vecadd(e.pos, vecnew(3, 4)), 1, math.pi/4, 15, 2, 9)
-			fireflies(vecadd(e.pos, vecnew(3, -10)), 30, 10, 9)
+			fireflies(true, vecadd(e.pos, vecnew(3, -10)), 30, 10, 9)
 
 			e.connect_to.move(e.connect_to)
 
@@ -948,6 +958,8 @@ lamp_create = (map_pos, connect_to) ->
 
 -- lamp door
 lamp_door_update = (e) ->
+	if time_stopped then
+		e.tween_pos.t_start_tween += 1
 	vecassign(e.pos, e.tween_pos.pos)
 
 lamp_door_draw = (e) ->
@@ -979,27 +991,34 @@ lamp_door_create = (pos, sz, dest) ->
 	return lamp_door
 
 -- firefly
+firefly_update = (e) ->
+	if time_stopped then
+		e.rnd -= 1
+
 firefly_draw = (e) ->
 	draw_pos = get_draw_pos(e.pos)
 	offsety = math.sin((t+e.rnd)/60) * 3
 	pix(draw_pos.x, draw_pos.y + offsety, e.color)
 
-firefly_create = (pos, color) ->
-	firefly = entity_create("firefly", pos, vecnew(1, 1))
+firefly_create = (reset, pos, color) ->
+	type = ""
+	if reset then type = "firefly_reset" else type = "firefly"
+	firefly = entity_create(type, pos, vecnew(1, 1))
 	firefly.color = color
 	firefly.collision_type = COLLISION_NONE
 	firefly.rnd = rndi(0, 1000)
 
 	firefly.draw = firefly_draw
+	firefly.update = firefly_update
 	return firefly
 
 -- fireflies
-fireflies = (pos, radius, num, color) ->
+fireflies = (reset, pos, radius, num, color) ->
 	for i = 1, num
 		vec = vecnew(rndf(-1, 1), rndf(-1, 1))
 		vec = vecmul(vecnormalized(vec), rndf(0, radius))
 		wait(i*rndf(0.1, 0.2), ->
-			entity_list_add(firefly_create(vecadd(pos, vec), color))
+			entity_list_add(firefly_create(reset, vecadd(pos, vec), color))
 		)
 
 export BOOT = ->
@@ -1019,6 +1038,7 @@ export TIC = ->
 	entity_list_update()
 	entity_list_chkremove()
 
+	bkg()
 	entity_list_draw()
 
 	t += 1
@@ -1067,6 +1087,12 @@ export TIC = ->
 -- 081:0000000000000000000000004333c3cc4433333c044003300003300003300330
 -- 082:4333c3cc4433333c040000300030030000033000000330000030030003000030
 -- 096:000f00000feeef000eecee000e99ce000e99ce000e499e000eeeee0000000000
+-- 192:000000000000000000000000000000000000efff0000f0000000f00000feeef0
+-- 193:00000000000000000000000000ef0000ffff000000ef000000ef000000ef0000
+-- 208:00eecee000ebbce000ebbce000edbbe000eeeee0000000000000000000000000
+-- 209:00ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef0000
+-- 225:00ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef0000
+-- 241:00ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef0000
 -- </SPRITES>
 
 -- <MAP>
@@ -1190,6 +1216,6 @@ export TIC = ->
 
 -- <PALETTE>
 -- 000:1a1c2cedededfffbedf3dea4f5c16da7f07038b764ad8a53262c3fffea66d98effbaf5fffffff694b0c2566c86333c57
--- 001:1a1c2cedededfffbeddededec7c7c7a7f07038b764ad8a532c2c2cffea66d98effe4e4e4fffff6aaaaaa6868683c3c3c
+-- 001:1a1c2cedededfffbeddededec7c7c7a7f07038b764ad8a532c2c2ce1e1e1d98effe4e4e4fffff6aaaaaa6868683c3c3c
 -- </PALETTE>
 
