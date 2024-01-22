@@ -9,6 +9,7 @@
 local vecnew
 local veccopy
 local player_create
+local spring_create
 local entity_list_add
 local tweenvec_create
 local tweenvec_list_add
@@ -78,6 +79,11 @@ boot = ->
 			restart: vecnew(32, 64),
 		},
 	}
+
+	spring = (x, y) ->
+		spring_0 = spring_create(vecnew(x, y))
+		entity_list_add(spring_0)
+	spring(38, 64)
 
 	cam = {
 		pos: tweenvec_create(vecnew(0, 85*8))
@@ -297,6 +303,10 @@ map_solid = (pos) ->
 	return m >= 1 and m <= 47
 
 map_only_down = (pos) ->
+	m = mget(pos.x // 8, pos.y // 8)
+	return m >= 48 and m <= 79
+
+map_only_down_half = (pos) ->
 	m = mget(pos.x // 8, pos.y // 8)
 	return pos.y % 8 <= 1 and m >= 48 and m <= 79
 
@@ -522,7 +532,7 @@ _entity_collision_pt_chk = (list) ->
 
 _entity_collision_pt_chk_down = (list) ->
 	for i, pos in ipairs(list)
-		if map_solid(pos) or map_only_down(pos) then
+		if map_solid(pos) or map_only_down_half(pos) then
 			return true
 
 	return false
@@ -775,6 +785,36 @@ explode = (pos) ->
 		fvec = vecrot(vecnew(0, 1.7), i*step)
 		entity_list_add(explode_particle_create(pos, fvec, 40, 5, 11))
 
+-- spring
+spring_update = (e) ->
+	if time_stopped then
+		e.t_spring_start += 1
+		return
+
+	t_diff = (t - e.t_spring_start) / 60
+	if rectcollide(player.pos, player.sz, e.pos, e.sz) and t_diff > 0.5 then
+		e.t_spring_start = t
+		player.gravity = -3.5
+		player.pos = vecsub(player.pos, vecnew(0, 1))
+
+_SPRING_SPR = {
+	337, 338, 337, 336,
+}
+spring_draw = (e) ->
+	draw_pos = get_draw_pos(e.pos)
+	t_diff = (t - e.t_spring_start) / 60
+	i = t_diff // 0.1 + 1
+	if i > #_SPRING_SPR then i = #_SPRING_SPR
+	spr(_SPRING_SPR[i], draw_pos.x, draw_pos.y - 6, 0)
+
+spring_create = (map_pos) ->
+	spring = entity_create("spring", vecnew(map_pos.x*8, map_pos.y*8 + 6), vecnew(8, 2))
+	spring.t_spring_start = 0
+	spring.update = spring_update
+	spring.draw = spring_draw
+	spring.collision_type = COLLISION_NONE
+	return spring
+
 export BOOT = ->
 	boot()
 
@@ -833,6 +873,9 @@ export TIC = ->
 -- 048:08fddf8008fddf800ffddff0fff88ffffff88fff08f88f8000c00c0000f00f00
 -- 064:eedeeeee0eedee00000000000000000000000000000000000000000000000000
 -- 065:ee00000000000000000000000000000000000000000000000000000000000000
+-- 080:0000000000000000000000000000000000000000000000004333c3cc4433333c
+-- 081:0000000000000000000000004333c3cc4433333c044003300003300003300330
+-- 082:4333c3cc4433333c040000300030030000033000000330000030030003000030
 -- </SPRITES>
 
 -- <MAP>
