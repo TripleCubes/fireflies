@@ -1,3 +1,9 @@
+Art and codes by TripleCubes
+
+Written in 4 days for Mini Jam 150: Magic
+
+Limitation: Light is the way
+
 Created using Tic80 pro version
 
 # LICENSE
