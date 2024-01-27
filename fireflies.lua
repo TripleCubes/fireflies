@@ -1,8 +1,6 @@
--- title:   game title
--- author:  game developer, email, etc.
--- desc:    short description
--- site:    website link
--- license: MIT License (change this to your license of choice)
+-- title:   Fireflies
+-- author:  TripleCubes
+-- license: MIT License
 -- version: 0.1
 -- script:  lua
 
